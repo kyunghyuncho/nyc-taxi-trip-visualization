@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 import plotly.express as px
@@ -48,11 +49,15 @@ st.sidebar.header("2. Hyperparameters")
 learning_rate = st.sidebar.number_input("Learning Rate", value=0.001, format="%.4f", step=0.0005)
 optimizer_name = st.sidebar.selectbox("Optimizer", options=['Adam', 'Muon', 'SGD'])
 nonlinearity = st.sidebar.selectbox("Nonlinearity", options=['ReLU', 'Tanh', 'GELU'])
-epochs = st.sidebar.slider("Epochs", min_value=10, max_value=150, value=30, step=10)
+epochs = st.sidebar.slider("Epochs (Max)", min_value=10, max_value=150, value=50, step=10)
 batch_size = st.sidebar.selectbox("Batch Size", options=[16, 32, 64, 128], index=2)
 hidden_layers = st.sidebar.text_input("Hidden Layers (comma separated)", value="64, 32")
 
-st.sidebar.header("3. Visualization Setup")
+st.sidebar.header("3. Denoising & Regularization")
+noise_factor = st.sidebar.slider("Input Noise Factor", min_value=0.0, max_value=1.0, value=0.1, step=0.05, help="Standard deviation of Gaussian noise added to inputs during training (0 = Standard Autoencoder).")
+early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value=3, max_value=20, value=5, help="Stop training if validation loss doesn't improve for this many epochs.")
+
+st.sidebar.header("4. Visualization Setup")
 color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('payment_type') if 'payment_type' in all_features else 0)
 
 # Main Page - Display a sample of the data
@@ -68,15 +73,22 @@ if st.button("Train Autoencoder"):
         # Prepare Data
         with st.spinner("Transforming Data..."):
             try:
-                X_tensor, preprocessor = transform_data(df, selected_features)
+                X_train_tensor, X_val_tensor, preprocessor = transform_data(df, selected_features)
             except Exception as e:
                 st.error(f"Error during transformation: {e}")
                 st.stop()
 
-            input_dim = X_tensor.shape[1]
-            dataset = TensorDataset(X_tensor)
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-            inference_loader = DataLoader(dataset, batch_size=512, shuffle=False)
+            input_dim = X_train_tensor.shape[1]
+            train_dataset = TensorDataset(X_train_tensor)
+            val_dataset = TensorDataset(X_val_tensor)
+            
+            # Using the whole dataset for final embeddings rendering
+            full_dataset = TensorDataset(torch.cat([X_train_tensor, X_val_tensor], dim=0))
+            
+            # DataLoaders
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+            inference_loader = DataLoader(full_dataset, batch_size=512, shuffle=False)
 
         st.subheader("Training Progress")
         progress_bar = st.progress(0)
@@ -88,15 +100,17 @@ if st.button("Train Autoencoder"):
             hidden_layers=hidden_layers,
             lr=learning_rate,
             optimizer_name=optimizer_name,
-            nonlinearity_name=nonlinearity
+            nonlinearity_name=nonlinearity,
+            input_noise_factor=noise_factor
         )
 
         st_callback = StreamlitProgressCallback(progress_bar, status_text, epochs)
+        early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=early_stopping_patience, verbose=False, mode="min")
 
         # PyTorch Lightning Trainer
         trainer = pl.Trainer(
             max_epochs=epochs,
-            callbacks=[st_callback],
+            callbacks=[st_callback, early_stop_callback],
             enable_checkpointing=False,
             logger=False, # Disable TensorBoard logger for simplicity
             accelerator='auto', # uses GPU/MPS if available
@@ -106,7 +120,7 @@ if st.button("Train Autoencoder"):
 
         # Train
         with st.spinner("Training..."):
-            trainer.fit(model, dataloader)
+            trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
         # Extract Embeddings
         with st.spinner("Extracting Embeddings..."):
