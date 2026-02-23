@@ -31,7 +31,8 @@ def plot_embeddings(df: pd.DataFrame, embeddings: pd.DataFrame, color_column: st
         
         # Ensure 'Other' is explicitly mapped to a gray, translucent color
         colors = px.colors.qualitative.Plotly
-        color_discrete_map = {cat: colors[i % len(colors)] for i, cat in enumerate(highlight_categories)}
+        all_unique_cats = sorted(plot_df[color_column].astype(str).dropna().unique())
+        color_discrete_map = {cat: colors[i % len(colors)] for i, cat in enumerate(all_unique_cats) if cat in highlight_categories}
         color_discrete_map['Other'] = 'rgba(128, 128, 128, 0.1)'
         
         # Sort so 'Other' is drawn first (in background)
