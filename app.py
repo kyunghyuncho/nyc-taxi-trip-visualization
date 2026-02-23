@@ -36,7 +36,7 @@ st.sidebar.header("1. Data Configuration")
 # Possible features to select
 all_features = df.columns.tolist()
 # Typical defaults that make sense for a taxi trip
-default_features = ['trip_distance', 'fare_amount', 'total_amount', 'pickup_hour', 'pickup_dayofweek', 'payment_type']
+default_features = ['trip_distance', 'fare_amount', 'total_amount', 'pickup_hour', 'pickup_dayofweek', 'payment_type', 'pu_borough', 'do_borough']
 available_defaults = [f for f in default_features if f in all_features]
 
 selected_features = st.sidebar.multiselect(
@@ -58,7 +58,7 @@ noise_factor = st.sidebar.slider("Input Noise Factor", min_value=0.0, max_value=
 early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value=3, max_value=20, value=5, help="Stop training if validation loss doesn't improve for this many epochs.")
 
 st.sidebar.header("4. Visualization Setup")
-color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('payment_type') if 'payment_type' in all_features else 0)
+color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
 
 # Main Page - Display a sample of the data
 st.subheader("Data Overview")

@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.model_selection import train_test_split
 import torch
 from dotenv import load_dotenv
 
@@ -102,8 +103,24 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         
     df['pickup_dayofweek'] = df['pickup_dayofweek'].map(dayofweek_map)
 
+    # Map Location IDs to Boroughs and Zones
+    try:
+        lookup_df = pd.read_csv('https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
+        borough_map = dict(zip(lookup_df['LocationID'], lookup_df['Borough']))
+        zone_map = dict(zip(lookup_df['LocationID'], lookup_df['Zone']))
+        
+        if 'pulocationid' in df.columns:
+            df['pu_borough'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(borough_map).fillna('Unknown')
+            df['pu_zone'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(zone_map).fillna('Unknown')
+            
+        if 'dolocationid' in df.columns:
+            df['do_borough'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(borough_map).fillna('Unknown')
+            df['do_zone'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(zone_map).fillna('Unknown')
+    except Exception as e:
+        print(f"Failed to fetch or map taxi zones: {e}")
+
     # Cast other known categorical columns to string
-    other_cat_cols = ['pulocationid', 'dolocationid', 'pickup_hour', 'store_and_fwd_flag']
+    other_cat_cols = ['pulocationid', 'dolocationid', 'pickup_hour', 'store_and_fwd_flag', 'pu_borough', 'do_borough', 'pu_zone', 'do_zone']
     for cat_col in other_cat_cols:
         if cat_col in df.columns:
             df[cat_col] = df[cat_col].astype(str)
@@ -111,17 +128,19 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, StandardScaler]:
+def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, torch.Tensor, StandardScaler]:
     """
+    Splits the data into train/val sets.
     Applies One-Hot Encoding and StandardScaler to selected features.
-    Returns the tensor and the scaler/transformer for potential inverse ops.
+    Returns the train tensor, val tensor, and the scaler/transformer.
     """
     if not feature_cols:
         raise ValueError("No feature columns selected for transformation.")
 
     # Heuristic: if a column is an object/category, or specifically named as categorical, we OHE it
     # For TLC data, vendor_id, RatecodeID, payment_type are usually categorical.
-    categorical_candidates = ['vendor_id', 'vendorid', 'ratecodeid', 'payment_type', 'pickup_dayofweek', 'pickup_hour']
+    categorical_candidates = ['vendor_id', 'vendorid', 'ratecodeid', 'payment_type', 'pickup_dayofweek', 'pickup_hour', 'pu_borough', 'do_borough', 'pu_zone', 'do_zone', 'pulocationid', 'dolocationid']
+
     
     # identify which of the selected features are categorical vs numeric
     categorical_features = [col for col in feature_cols if col.lower() in categorical_candidates or df[col].dtype == 'object']
@@ -136,10 +155,16 @@ def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, 
 
     preprocessor = ColumnTransformer(transformers=transformers)
 
+    # Split Data (80/20)
+    df_train, df_val = train_test_split(df, test_size=0.2, random_state=42)
+
     # Fit and transform
-    X_transformed = preprocessor.fit_transform(df[feature_cols])
+    X_train_transformed = preprocessor.fit_transform(df_train[feature_cols])
+    X_val_transformed = preprocessor.transform(df_val[feature_cols])
     
     # Convert to PyTorch Tensor
-    X_tensor = torch.tensor(X_transformed, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train_transformed, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_transformed, dtype=torch.float32)
 
-    return X_tensor, preprocessor
+    # Return
+    return X_train_tensor, X_val_tensor, preprocessor
