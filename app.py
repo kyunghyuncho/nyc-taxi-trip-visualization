@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 
 # Local imports
 from data import fetch_data, preprocess_data, transform_data
+from model import Autoencoder, StreamlitProgressCallback
 from viz import plot_embeddings
 from sklearn.neighbors import NearestNeighbors
 
