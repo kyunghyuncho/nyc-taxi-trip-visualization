@@ -1,0 +1,8 @@
+streamlit
+torch
+pytorch-lightning
+pandas
+scikit-learn
+plotly
+requests
+python-dotenv
