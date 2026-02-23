@@ -47,16 +47,17 @@ selected_features = st.sidebar.multiselect(
 )
 
 st.sidebar.header("2. Hyperparameters")
-learning_rate = st.sidebar.number_input("Learning Rate", value=0.001, format="%.4f", step=0.0005)
-optimizer_name = st.sidebar.selectbox("Optimizer", options=['Adam', 'Muon', 'SGD'])
-nonlinearity = st.sidebar.selectbox("Nonlinearity", options=['ReLU', 'Tanh', 'GELU'])
-epochs = st.sidebar.slider("Epochs (Max)", min_value=10, max_value=150, value=50, step=10)
-batch_size = st.sidebar.selectbox("Batch Size", options=[16, 32, 64, 128], index=2)
-hidden_layers = st.sidebar.text_input("Hidden Layers (comma separated)", value="64, 32")
+use_pca = st.sidebar.checkbox("Use PCA (Linear Autoencoder)", value=False, help="Skips neural network training and uses Standard PCA.")
+learning_rate = st.sidebar.number_input("Learning Rate", value=0.001, format="%.4f", step=0.0005, disabled=use_pca)
+optimizer_name = st.sidebar.selectbox("Optimizer", options=['Adam', 'Muon', 'SGD'], disabled=use_pca)
+nonlinearity = st.sidebar.selectbox("Nonlinearity", options=['ReLU', 'Tanh', 'GELU'], disabled=use_pca)
+epochs = st.sidebar.slider("Epochs (Max)", min_value=10, max_value=150, value=50, step=10, disabled=use_pca)
+batch_size = st.sidebar.selectbox("Batch Size", options=[16, 32, 64, 128], index=2, disabled=use_pca)
+hidden_layers = st.sidebar.text_input("Hidden Layers (comma separated)", value="64, 32", disabled=use_pca)
 
 st.sidebar.header("3. Denoising & Regularization")
-noise_factor = st.sidebar.slider("Input Noise Factor", min_value=0.0, max_value=1.0, value=0.1, step=0.05, help="Standard deviation of Gaussian noise added to inputs during training (0 = Standard Autoencoder).")
-early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value=3, max_value=20, value=5, help="Stop training if validation loss doesn't improve for this many epochs.")
+noise_factor = st.sidebar.slider("Input Noise Factor", min_value=0.0, max_value=1.0, value=0.1, step=0.05, help="Standard deviation of Gaussian noise added to inputs during training (0 = Standard Autoencoder).", disabled=use_pca)
+early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value=3, max_value=20, value=5, help="Stop training if validation loss doesn't improve for this many epochs.", disabled=use_pca)
 
 st.sidebar.header("4. Visualization Setup")
 color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
@@ -77,7 +78,9 @@ st.dataframe(df.head(10))
 st.caption(f"Total Rows Ready for Training: {len(df)}")
 
 # --- Training Logic ---
-if st.button("Train Autoencoder"):
+button_text = "Run PCA" if use_pca else "Train Autoencoder"
+
+if st.button(button_text):
     if not selected_features:
         st.error("Please select at least one input feature.")
     else:
@@ -94,67 +97,78 @@ if st.button("Train Autoencoder"):
             val_dataset = TensorDataset(X_val_tensor)
             
             # Using the whole dataset for final embeddings rendering
-            full_dataset = TensorDataset(torch.cat([X_train_tensor, X_val_tensor], dim=0))
+            full_dataset_tensor = torch.cat([X_train_tensor, X_val_tensor], dim=0)
+            full_dataset = TensorDataset(full_dataset_tensor)
             
             # DataLoaders
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
             val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
             inference_loader = DataLoader(full_dataset, batch_size=512, shuffle=False)
 
-        st.subheader("Training Progress")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-        # Initialize Model
-        model = Autoencoder(
-            input_dim=input_dim,
-            num_numeric_features=num_numeric,
-            cat_sizes=cat_sizes,
-            hidden_layers=hidden_layers,
-            lr=learning_rate,
-            optimizer_name=optimizer_name,
-            nonlinearity_name=nonlinearity,
-            input_noise_factor=noise_factor
-        )
-
-        st_callback = StreamlitProgressCallback(progress_bar, status_text, epochs)
-        early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=early_stopping_patience, verbose=False, mode="min")
-
-        # PyTorch Lightning Trainer
-        trainer = pl.Trainer(
-            max_epochs=epochs,
-            callbacks=[st_callback, early_stop_callback],
-            enable_checkpointing=False,
-            logger=False, # Disable TensorBoard logger for simplicity
-            accelerator='auto', # uses GPU/MPS if available
-            devices=1,
-            enable_progress_bar=False # Disable default tqdm
-        )
-
-        # Train
-        with st.spinner("Training..."):
-            trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
-
-        # Extract Embeddings
-        with st.spinner("Extracting Embeddings..."):
-            embeddings_list = []
-            for batch in inference_loader:
-                x = batch[0]
-                emb = model.get_embeddings(x)
-                embeddings_list.append(emb)
-            
-            all_embeddings = torch.cat(embeddings_list, dim=0).numpy()
-
-            # Orthogonalize the latent space using PCA
-            with st.spinner("Applying PCA (Orthogonalization)..."):
+        if use_pca:
+            with st.spinner("Running PCA..."):
                 pca = PCA(n_components=2)
-                all_embeddings = pca.fit_transform(all_embeddings)
+                # PCA doesn't need PyTorch batches, fit directly on the whole preprocessed tensor
+                all_embeddings = pca.fit_transform(full_dataset_tensor.numpy())
+                
+                st.session_state['embeddings'] = all_embeddings
+                st.session_state['trained'] = True
+                st.success("PCA Complete!")
+        else:
+            st.subheader("Training Progress")
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
-            # Store in session state
-            st.session_state['embeddings'] = all_embeddings
-            st.session_state['trained'] = True
-            
-            st.success("Training Complete!")
+            # Initialize Model
+            model = Autoencoder(
+                input_dim=input_dim,
+                num_numeric_features=num_numeric,
+                cat_sizes=cat_sizes,
+                hidden_layers=hidden_layers,
+                lr=learning_rate,
+                optimizer_name=optimizer_name,
+                nonlinearity_name=nonlinearity,
+                input_noise_factor=noise_factor
+            )
+
+            st_callback = StreamlitProgressCallback(progress_bar, status_text, epochs)
+            early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=0.0001, patience=early_stopping_patience, verbose=False, mode="min")
+
+            # PyTorch Lightning Trainer
+            trainer = pl.Trainer(
+                max_epochs=epochs,
+                callbacks=[st_callback, early_stop_callback],
+                enable_checkpointing=False,
+                logger=False, # Disable TensorBoard logger for simplicity
+                accelerator='auto', # uses GPU/MPS if available
+                devices=1,
+                enable_progress_bar=False # Disable default tqdm
+            )
+
+            # Train
+            with st.spinner("Training..."):
+                trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+
+            # Extract Embeddings
+            with st.spinner("Extracting Embeddings..."):
+                embeddings_list = []
+                for batch in inference_loader:
+                    x = batch[0]
+                    emb = model.get_embeddings(x)
+                    embeddings_list.append(emb)
+                
+                all_embeddings = torch.cat(embeddings_list, dim=0).numpy()
+
+                # Orthogonalize the latent space using PCA
+                with st.spinner("Applying PCA (Orthogonalization)..."):
+                    pca = PCA(n_components=2)
+                    all_embeddings = pca.fit_transform(all_embeddings)
+
+                # Store in session state
+                st.session_state['embeddings'] = all_embeddings
+                st.session_state['trained'] = True
+                
+                st.success("Training Complete!")
 
 # --- Render Plot ---
 st.markdown("---")
