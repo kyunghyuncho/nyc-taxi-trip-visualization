@@ -74,7 +74,19 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     # Extract temporal features
     df['pickup_hour'] = df['tpep_pickup_datetime'].dt.hour
     df['pickup_dayofweek'] = df['tpep_pickup_datetime'].dt.dayofweek
+    
+    # Cast known categorical columns to string so Plotly maps them correctly 
+    # instead of treating them as continuous colors
+    categorical_columns = [
+        'vendorid', 'ratecodeid', 'pulocationid', 'dolocationid', 
+        'payment_type', 'pickup_dayofweek', 'pickup_hour', 'store_and_fwd_flag'
+    ]
+    for cat_col in categorical_columns:
+        if cat_col in df.columns:
+            df[cat_col] = df[cat_col].astype(str)
+            
     return df
+
 
 def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, StandardScaler]:
     """
