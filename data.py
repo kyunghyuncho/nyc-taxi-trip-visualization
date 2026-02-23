@@ -8,30 +8,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SOCRATA_DATA_URL = "https://data.cityofnewyork.us/resource/t29m-gskq.json" # 2020 Yellow Taxi Data as an example
+# TLC Trip Record Data (Yellow Taxi 2023-01)
+TLC_PARQUET_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet"
 
 @st.cache_data
-def fetch_data(limit=5000):
+def fetch_data(limit=10000):
     """
-    Fetches NYC Yellow Taxi data from Socrata API.
-    Uses SOCRATA_APP_TOKEN from environment if available.
+    Fetches NYC Yellow Taxi data directly from the TLC Parquet S3 bucket.
+    This is much faster than the JSON API.
     """
-    url = f"{SOCRATA_DATA_URL}?$limit={limit}"
+    print(f"Fetching {limit} rows from {TLC_PARQUET_URL}...")
     
-    headers = {}
-    app_token = os.environ.get("SOCRATA_APP_TOKEN")
-    if app_token:
-        headers["X-App-Token"] = app_token
-
-    print(f"Fetching {limit} rows from {url}...")
-    
-    if headers:
-        import requests
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        df = pd.DataFrame(response.json())
-    else:
-        df = pd.read_json(url)
+    # We read the first `limit` rows. 
+    # To do this efficiently without loading the whole file into memory first:
+    try:
+        df = pd.read_parquet(TLC_PARQUET_URL, engine='pyarrow')
+        # Sample the dataframe to get a reasonable subset
+        df = df.sample(n=min(limit, len(df)), random_state=42).reset_index(drop=True)
+    except Exception as e:
+        print(f"Failed to load parquet: {e}")
+        return pd.DataFrame()
         
     return df
 
@@ -42,11 +38,23 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     # Create a copy to avoid SettingWithCopyWarning
     df = df.copy()
     
+    # Capitalization may vary in the parquet file
+    pickup_col = 'tpep_pickup_datetime' if 'tpep_pickup_datetime' in df.columns else 'tpep_pickup_datetime'.capitalize()
+    dropoff_col = 'tpep_dropoff_datetime' if 'tpep_dropoff_datetime' in df.columns else 'tpep_dropoff_datetime'.capitalize()
+
+    if pickup_col not in df.columns and 'tpep_pickup_datetime' not in df.columns.str.lower():
+         # Fallback search
+         pickup_col = [c for c in df.columns if 'pickup' in c.lower() and 'datetime' in c.lower()][0]
+         dropoff_col = [c for c in df.columns if 'dropoff' in c.lower() and 'datetime' in c.lower()][0]
+
     # Ensure datetime columns are parsed
-    df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'])
-    df['tpep_dropoff_datetime'] = pd.to_datetime(df['tpep_dropoff_datetime'])
+    df[pickup_col] = pd.to_datetime(df[pickup_col])
+    df[dropoff_col] = pd.to_datetime(df[dropoff_col])
     
     # Drop rows with invalid or nonsensical data (often present in TLC data)
+    # The columns might be capitalized like 'Trip_distance'
+    df.columns = df.columns.astype(str).str.lower()
+    
     num_cols = ['trip_distance', 'fare_amount', 'total_amount']
     for col in num_cols:
         if col in df.columns:
