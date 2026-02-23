@@ -5,11 +5,12 @@ import streamlit as st
 from optimizer import Muon
 
 class Autoencoder(pl.LightningModule):
-    def __init__(self, input_dim: int, hidden_layers: str, lr: float, optimizer_name: str, nonlinearity_name: str):
+    def __init__(self, input_dim: int, hidden_layers: str, lr: float, optimizer_name: str, nonlinearity_name: str, input_noise_factor: float = 0.0):
         super().__init__()
         self.save_hyperparameters()
         self.lr = lr
         self.optimizer_name = optimizer_name
+        self.input_noise_factor = input_noise_factor
         
         # Parse hidden layers
         try:
@@ -66,10 +67,25 @@ class Autoencoder(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x = batch[0] # TensorDataset yields a tuple
-        x_hat = self(x)
-        loss = self.criterion(x_hat, x)
-        self.log('train_loss', loss, prog_bar=True)
+        
+        # Inject noise for denoising capability
+        if self.input_noise_factor > 0:
+            x_noisy = x + self.input_noise_factor * torch.randn_like(x)
+            # Clip if necessary, though StandardScaler data is mean 0 std 1, so it shouldn't strictly require it
+            x_hat = self(x_noisy)
+        else:
+            x_hat = self(x)
+            
+        loss = self.criterion(x_hat, x) # Reconstruction loss against ORIGINAL input
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        x = batch[0]
+        x_hat = self(x)
+        val_loss = self.criterion(x_hat, x)
+        self.log('val_loss', val_loss, on_step=False, on_epoch=True, prog_bar=True)
+        return val_loss
 
     def configure_optimizers(self):
         if self.optimizer_name == 'Adam':
@@ -95,12 +111,17 @@ class StreamlitProgressCallback(pl.Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         epoch = trainer.current_epoch + 1
-        loss = trainer.callback_metrics.get('train_loss')
-        loss_val = f"{loss.item():.4f}" if loss is not None else "N/A"
+        
+        # metric names depend on whether validation is run (usually run_epoch_end handles both)
+        train_loss = trainer.callback_metrics.get('train_loss')
+        val_loss = trainer.callback_metrics.get('val_loss')
+        
+        train_val_str = f"{train_loss.item():.4f}" if train_loss is not None else "N/A"
+        val_val_str = f"{val_loss.item():.4f}" if val_loss is not None else "N/A"
         
         # Update progress bar
         progress = epoch / self.total_epochs
         self.progress_bar.progress(progress)
         
         # Update text
-        self.status_text.text(f"Epoch {epoch}/{self.total_epochs} - Loss: {loss_val}")
+        self.status_text.text(f"Epoch {epoch}/{self.total_epochs} - Train Loss: {train_val_str} | Val Loss: {val_val_str}")
