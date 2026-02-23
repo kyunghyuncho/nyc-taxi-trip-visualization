@@ -24,10 +24,15 @@ def fetch_data(limit=5000):
         headers["X-App-Token"] = app_token
 
     print(f"Fetching {limit} rows from {url}...")
-    df = pd.read_json(
-        url,
-        storage_options={"headers": headers} if headers else None
-    )
+    
+    if headers:
+        import requests
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        df = pd.DataFrame(response.json())
+    else:
+        df = pd.read_json(url)
+        
     return df
 
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
