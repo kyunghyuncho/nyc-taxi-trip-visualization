@@ -61,6 +61,16 @@ early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value
 st.sidebar.header("4. Visualization Setup")
 color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
 
+highlight_categories = None
+if color_column in df.columns and df[color_column].dtype == 'object':
+    unique_cats = sorted(df[color_column].astype(str).dropna().unique().tolist())
+    highlight_categories = st.sidebar.multiselect(
+        f"Highlight specific {color_column}s",
+        options=unique_cats,
+        default=unique_cats[:5] if len(unique_cats) > 5 else unique_cats,
+        help="Categories not selected will be grayed out in the plot. If all are removed, everything is grayed out."
+    )
+
 # Main Page - Display a sample of the data
 st.subheader("Data Overview")
 st.dataframe(df.head(10))
@@ -160,7 +170,8 @@ if st.session_state.get('trained', False):
         df=st.session_state['df'],
         embeddings=embeddings,
         color_column=color_column,
-        hover_cols=hover_cols
+        hover_cols=hover_cols,
+        highlight_categories=highlight_categories
     )
     st.plotly_chart(fig, use_container_width=True)
 else:
