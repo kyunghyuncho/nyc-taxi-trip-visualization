@@ -75,13 +75,36 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     df['pickup_hour'] = df['tpep_pickup_datetime'].dt.hour
     df['pickup_dayofweek'] = df['tpep_pickup_datetime'].dt.dayofweek
     
-    # Cast known categorical columns to string so Plotly maps them correctly 
-    # instead of treating them as continuous colors
-    categorical_columns = [
-        'vendorid', 'ratecodeid', 'pulocationid', 'dolocationid', 
-        'payment_type', 'pickup_dayofweek', 'pickup_hour', 'store_and_fwd_flag'
-    ]
-    for cat_col in categorical_columns:
+    # NYC TLC Data Dictionary Mappings
+    vendor_map = {1: 'Creative Mobile Technologies', 2: 'VeriFone Inc.'}
+    ratecode_map = {
+        1: 'Standard rate', 2: 'JFK', 3: 'Newark', 
+        4: 'Nassau or Westchester', 5: 'Negotiated fare', 6: 'Group ride'
+    }
+    payment_map = {
+        1: 'Credit card', 2: 'Cash', 3: 'No charge', 
+        4: 'Dispute', 5: 'Unknown', 6: 'Voided trip'
+    }
+    dayofweek_map = {
+        0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 
+        3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'
+    }
+
+    # Apply Mappings
+    if 'vendorid' in df.columns:
+        df['vendorid'] = pd.to_numeric(df['vendorid'], errors='coerce').map(vendor_map).fillna('Unknown')
+    
+    if 'ratecodeid' in df.columns:
+        df['ratecodeid'] = pd.to_numeric(df['ratecodeid'], errors='coerce').map(ratecode_map).fillna('Unknown')
+    
+    if 'payment_type' in df.columns:
+        df['payment_type'] = pd.to_numeric(df['payment_type'], errors='coerce').map(payment_map).fillna('Unknown')
+        
+    df['pickup_dayofweek'] = df['pickup_dayofweek'].map(dayofweek_map)
+
+    # Cast other known categorical columns to string
+    other_cat_cols = ['pulocationid', 'dolocationid', 'pickup_hour', 'store_and_fwd_flag']
+    for cat_col in other_cat_cols:
         if cat_col in df.columns:
             df[cat_col] = df[cat_col].astype(str)
             
