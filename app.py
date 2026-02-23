@@ -74,7 +74,7 @@ if st.button("Train Autoencoder"):
         # Prepare Data
         with st.spinner("Transforming Data..."):
             try:
-                X_train_tensor, X_val_tensor, preprocessor = transform_data(df, selected_features)
+                X_train_tensor, X_val_tensor, preprocessor, num_numeric, cat_sizes = transform_data(df, selected_features)
             except Exception as e:
                 st.error(f"Error during transformation: {e}")
                 st.stop()
@@ -98,6 +98,8 @@ if st.button("Train Autoencoder"):
         # Initialize Model
         model = Autoencoder(
             input_dim=input_dim,
+            num_numeric_features=num_numeric,
+            cat_sizes=cat_sizes,
             hidden_layers=hidden_layers,
             lr=learning_rate,
             optimizer_name=optimizer_name,

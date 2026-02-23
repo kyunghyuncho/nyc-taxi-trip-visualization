@@ -1,16 +1,19 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import streamlit as st
 from optimizer import Muon
 
 class Autoencoder(pl.LightningModule):
-    def __init__(self, input_dim: int, hidden_layers: str, lr: float, optimizer_name: str, nonlinearity_name: str, input_noise_factor: float = 0.0):
+    def __init__(self, input_dim: int, num_numeric_features: int, cat_sizes: list, hidden_layers: str, lr: float, optimizer_name: str, nonlinearity_name: str, input_noise_factor: float = 0.0):
         super().__init__()
         self.save_hyperparameters()
         self.lr = lr
         self.optimizer_name = optimizer_name
         self.input_noise_factor = input_noise_factor
+        self.num_numeric_features = num_numeric_features
+        self.cat_sizes = cat_sizes
         
         # Parse hidden layers
         try:
@@ -51,13 +54,33 @@ class Autoencoder(pl.LightningModule):
         
         decoder_layers.append(nn.Linear(in_d, input_dim))
         self.decoder = nn.Sequential(*decoder_layers)
-        
-        self.criterion = nn.MSELoss()
 
     def forward(self, x):
         z = self.encoder(x)
         x_hat = self.decoder(z)
         return x_hat
+
+    def get_loss(self, x_hat, x):
+        """
+        Computes MSE for numeric features and CrossEntropy for each categorical feature group.
+        x_hat (logits): The raw linear outputs from the decoder.
+        """
+        loss = 0.0
+        
+        # 1. Numeric Features (MSE)
+        if self.num_numeric_features > 0:
+            loss += F.mse_loss(x_hat[:, :self.num_numeric_features], x[:, :self.num_numeric_features])
+            
+        # 2. Categorical Features (Cross Entropy)
+        idx = self.num_numeric_features
+        for cat_size in self.cat_sizes:
+            logits = x_hat[:, idx:idx+cat_size]
+            targets = x[:, idx:idx+cat_size]
+            # cross_entropy handles targets that are probabilities/one-hot in PyTorch >= 1.10
+            loss += F.cross_entropy(logits, targets)
+            idx += cat_size
+            
+        return loss
 
     def get_embeddings(self, x):
         """Extract the 2D bottleneck representations."""
@@ -76,14 +99,14 @@ class Autoencoder(pl.LightningModule):
         else:
             x_hat = self(x)
             
-        loss = self.criterion(x_hat, x) # Reconstruction loss against ORIGINAL input
+        loss = self.get_loss(x_hat, x)
         self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x = batch[0]
         x_hat = self(x)
-        val_loss = self.criterion(x_hat, x)
+        val_loss = self.get_loss(x_hat, x)
         self.log('val_loss', val_loss, on_step=False, on_epoch=True, prog_bar=True)
         return val_loss
 

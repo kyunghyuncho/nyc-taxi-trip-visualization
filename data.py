@@ -128,11 +128,11 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, torch.Tensor, StandardScaler]:
+def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, torch.Tensor, StandardScaler, int, list]:
     """
     Splits the data into train/val sets.
     Applies One-Hot Encoding and StandardScaler to selected features.
-    Returns the train tensor, val tensor, and the scaler/transformer.
+    Returns the train tensor, val tensor, scaler/transformer, num_numeric, and cat_sizes.
     """
     if not feature_cols:
         raise ValueError("No feature columns selected for transformation.")
@@ -166,5 +166,11 @@ def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, 
     X_train_tensor = torch.tensor(X_train_transformed, dtype=torch.float32)
     X_val_tensor = torch.tensor(X_val_transformed, dtype=torch.float32)
 
+    # Gather feature sizes for separated loss calculations
+    num_numeric = len(numeric_features)
+    cat_sizes = []
+    if 'cat' in preprocessor.named_transformers_:
+        cat_sizes = [len(c) for c in preprocessor.named_transformers_['cat'].categories_]
+
     # Return
-    return X_train_tensor, X_val_tensor, preprocessor
+    return X_train_tensor, X_val_tensor, preprocessor, num_numeric, cat_sizes
