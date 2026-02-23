@@ -5,6 +5,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 import plotly.express as px
+from sklearn.decomposition import PCA
 
 # Local imports
 from data import fetch_data, preprocess_data, transform_data
@@ -131,6 +132,11 @@ if st.button("Train Autoencoder"):
                 embeddings_list.append(emb)
             
             all_embeddings = torch.cat(embeddings_list, dim=0).numpy()
+
+            # Orthogonalize the latent space using PCA
+            with st.spinner("Applying PCA (Orthogonalization)..."):
+                pca = PCA(n_components=2)
+                all_embeddings = pca.fit_transform(all_embeddings)
 
             # Store in session state
             st.session_state['embeddings'] = all_embeddings
