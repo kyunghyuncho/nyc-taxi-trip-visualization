@@ -9,8 +9,8 @@ from sklearn.decomposition import PCA
 
 # Local imports
 from data import fetch_data, preprocess_data, transform_data
-from model import Autoencoder, StreamlitProgressCallback
 from viz import plot_embeddings
+from sklearn.neighbors import NearestNeighbors
 
 st.set_page_config(page_title="NYC Taxi Dimensionality Reduction", layout="wide")
 
@@ -187,6 +187,86 @@ if st.session_state.get('trained', False):
         hover_cols=hover_cols,
         highlight_categories=highlight_categories
     )
-    st.plotly_chart(fig, use_container_width=True)
+    
+    # Render with selection events enabled
+    event = st.plotly_chart(
+        fig, 
+        use_container_width=True, 
+        on_select="rerun", 
+        selection_mode="points"
+    )
+
+    # --- Data Instance Cards (KNN) ---
+    selected_points = []
+    if event:
+        # Safely extract points depending on how Streamlit wraps the event
+        if hasattr(event, 'selection'):
+            sel = event.selection
+            if isinstance(sel, dict):
+                selected_points = sel.get('points', [])
+            elif hasattr(sel, 'points'):
+                selected_points = getattr(sel, 'points', [])
+        elif isinstance(event, dict) and 'selection' in event:
+            selected_points = event['selection'].get('points', [])
+            
+    if selected_points:
+        st.markdown("### Selected Point & 10 Nearest Neighbors")
+        
+        # Get the first clicked point coordinates
+        clicked_x = selected_points[0].get('x') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'x', None)
+        clicked_y = selected_points[0].get('y') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'y', None)
+        
+        if clicked_x is None or clicked_y is None:
+            st.warning("Could not extract coordinates from the selected point.")
+            st.stop()
+            
+        # Find Nearest Neighbors in the 2D latent space
+        nn = NearestNeighbors(n_neighbors=11) # 1 for the point itself + 10 neighbors
+        nn.fit(embeddings)
+        
+        distances, indices = nn.kneighbors([[clicked_x, clicked_y]])
+        neighbor_indices = indices[0]
+        
+        # Render the Reference Point
+        st.markdown("#### The Reference Point")
+        ref_idx = neighbor_indices[0]
+        ref_row = df.iloc[ref_idx]
+        
+        # Helper to render a row as a card
+        def render_card(row, distance=None):
+            with st.container(border=True):
+                # Highlight the key metrics
+                cols = st.columns(3)
+                cols[0].metric("Fare Amount", f"${row.get('fare_amount', 0):.2f}")
+                cols[1].metric("Trip Distance", f"{row.get('trip_distance', 0):.2f} mi")
+                cols[2].metric("Total Amount", f"${row.get('total_amount', 0):.2f}")
+                
+                # Show categorical info
+                st.markdown(f"**Pickup:** {row.get('pu_borough', 'N/A')} ({row.get('pu_zone', 'N/A')}) at {row.get('pickup_hour', 'N/A')}:00")
+                st.markdown(f"**Dropoff:** {row.get('do_borough', 'N/A')} ({row.get('do_zone', 'N/A')})")
+                st.markdown(f"**Payment:** {row.get('payment_type', 'N/A')} | **Day:** {row.get('pickup_dayofweek', 'N/A')}")
+                if distance is not None:
+                    st.caption(f"Latent Distance: {distance:.4f}")
+                    
+        render_card(ref_row)
+        
+        st.markdown("#### 10 Nearest Neighbors")
+        # Render neighbors in a grid
+        for i in range(1, len(neighbor_indices), 2): # 2 cards per row
+            cols = st.columns(2)
+            with cols[0]:
+                idx = neighbor_indices[i]
+                dist = distances[0][i]
+                render_card(df.iloc[idx], distance=dist)
+                
+            if i + 1 < len(neighbor_indices):
+                with cols[1]:
+                    idx = neighbor_indices[i+1]
+                    dist = distances[0][i+1]
+                    render_card(df.iloc[idx], distance=dist)
+                    
+    else:
+        st.info("Click on any point in the scatter plot above to view its details and nearest neighbors.")
+
 else:
-    st.info("Click 'Train Autoencoder' to generate the visualization.")
+    st.info("Click 'Train Autoencoder' or 'Run PCA' to generate the visualization.")
