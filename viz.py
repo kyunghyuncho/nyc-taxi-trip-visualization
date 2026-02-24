@@ -24,6 +24,15 @@ def plot_embeddings(df: pd.DataFrame, embeddings: pd.DataFrame, color_column: st
     color_col_to_use = color_column if color_column in plot_df.columns else None
     color_discrete_map = None
     
+    # Handle skewed feature log color mapping
+    import numpy as np
+    skewed_cols = ['trip_distance', 'fare_amount', 'total_amount', 'tip_amount', 'tolls_amount']
+    if color_col_to_use in skewed_cols and pd.api.types.is_numeric_dtype(plot_df[color_col_to_use]):
+        log_col = f'Log1p({color_col_to_use})'
+        # Clip negatives just in case to prevent NaN logs
+        plot_df[log_col] = np.log1p(plot_df[color_col_to_use].clip(lower=0))
+        color_col_to_use = log_col
+    
     # Handle highlighting specific categories
     if highlight_categories is not None and color_col_to_use is not None:
         plot_df['_highlight'] = plot_df[color_column].apply(lambda x: x if x in highlight_categories else 'Other')
