@@ -315,6 +315,24 @@ if st.session_state.get('trained', False):
             else:
                 st.warning("Coordinates not available for these trips to map geographically. Ensure the shapefile was processed successfully.")
                 
+        # Neighborhood Stats
+        st.markdown("#### Neighborhood Statistics")
+        neighbors_df = df.iloc[neighbor_indices]
+        hist_cols = st.columns(3)
+        with hist_cols[0]:
+            fig_dist = px.histogram(neighbors_df, x="trip_distance", title="Trip Distances (mi)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+            fig_dist.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig_dist, use_container_width=True)
+        with hist_cols[1]:
+            fig_fare = px.histogram(neighbors_df, x="fare_amount", title="Fare Amounts ($)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+            fig_fare.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig_fare, use_container_width=True)
+            
+        with hist_cols[2]:
+            fig_hour = px.histogram(neighbors_df, x="pickup_hour", title="Pickup Hours", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+            fig_hour.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(dtick=1))
+            st.plotly_chart(fig_hour, use_container_width=True)
+            
     else:
         st.info("Click on any point in the scatter plot above to view its geographic trip and nearest neighbors.")
 
