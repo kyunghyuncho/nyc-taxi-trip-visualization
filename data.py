@@ -1,9 +1,11 @@
 import os
 import pandas as pd
+import numpy as np
 import streamlit as st
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 import torch
 from dotenv import load_dotenv
 
@@ -179,8 +181,23 @@ def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, 
 
     # Preprocessors
     transformers = []
-    if numeric_features:
-        transformers.append(('num', StandardScaler(), numeric_features))
+    
+    # Skewed features that benefit from log transformation
+    skewed_candidates = ['trip_distance', 'fare_amount', 'total_amount', 'tip_amount', 'tolls_amount']
+    skewed_features = [col for col in numeric_features if col in skewed_candidates]
+    other_numeric = [col for col in numeric_features if col not in skewed_candidates]
+
+    if skewed_features:
+        # log1p handles 0 values gracefully: log(1 + x)
+        log_pipeline = Pipeline([
+            ('log1p', FunctionTransformer(np.log1p, validate=False)),
+            ('scaler', StandardScaler())
+        ])
+        transformers.append(('num_log', log_pipeline, skewed_features))
+        
+    if other_numeric:
+        transformers.append(('num_other', StandardScaler(), other_numeric))
+        
     if categorical_features:
         transformers.append(('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_features))
 
