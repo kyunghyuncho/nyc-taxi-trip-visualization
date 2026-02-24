@@ -61,6 +61,7 @@ hidden_layers = st.sidebar.text_input("Hidden Layers (comma separated)", value="
 st.sidebar.header("3. Denoising & Regularization")
 noise_factor = st.sidebar.slider("Input Noise Factor", min_value=0.0, max_value=1.0, value=0.1, step=0.05, help="Standard deviation of Gaussian noise added to inputs during training (0 = Standard Autoencoder).", disabled=use_pca)
 early_stopping_patience = st.sidebar.slider("Early Stopping Patience", min_value=3, max_value=20, value=5, help="Stop training if validation loss doesn't improve for this many epochs.", disabled=use_pca)
+apply_pca = st.sidebar.checkbox("Orthogonalize Latent Space (PCA)", value=True, help="Apply PCA to the extracted embeddings after autoencoder training to make dimensions orthogonal.", disabled=use_pca)
 
 st.sidebar.header("4. Visualization Setup")
 color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
@@ -162,10 +163,11 @@ if st.button(button_text):
                 
                 all_embeddings = torch.cat(embeddings_list, dim=0).numpy()
 
-                # Orthogonalize the latent space using PCA
-                with st.spinner("Applying PCA (Orthogonalization)..."):
-                    pca = PCA(n_components=2)
-                    all_embeddings = pca.fit_transform(all_embeddings)
+                # Optionally Orthogonalize the latent space using PCA
+                if apply_pca:
+                    with st.spinner("Applying PCA (Orthogonalization)..."):
+                        pca = PCA(n_components=2)
+                        all_embeddings = pca.fit_transform(all_embeddings)
 
                 # Store in session state
                 st.session_state['embeddings'] = all_embeddings
