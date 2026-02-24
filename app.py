@@ -177,166 +177,225 @@ if st.button(button_text):
 
 # --- Render Plot ---
 st.markdown("---")
-st.subheader("Latent Space Visualization")
+tab1, tab2 = st.tabs(["Latent Space Visualization", "Data Analysis"])
 
-if st.session_state.get('trained', False):
-    embeddings = st.session_state['embeddings']
+with tab1:
+    st.subheader("Latent Space Visualization")
     
-    # We want a few useful columns for hover data
-    hover_cols = [col for col in ['trip_distance', 'fare_amount', 'pickup_hour'] if col in df.columns]
-
-    fig = plot_embeddings(
-        df=st.session_state['df'],
-        embeddings=embeddings,
-        color_column=color_column,
-        hover_cols=hover_cols,
-        highlight_categories=highlight_categories
-    )
+    if st.session_state.get('trained', False):
+        embeddings = st.session_state['embeddings']
+        
+        # We want a few useful columns for hover data
+        hover_cols = [col for col in ['trip_distance', 'fare_amount', 'pickup_hour'] if col in df.columns]
     
-    # Render with selection events enabled
-    event = st.plotly_chart(
-        fig, 
-        use_container_width=True, 
-        on_select="rerun", 
-        selection_mode="points"
-    )
-
-    # --- Data Instance Cards (KNN) ---
-    selected_points = []
-    if event:
-        # Safely extract points depending on how Streamlit wraps the event
-        if hasattr(event, 'selection'):
-            sel = event.selection
-            if isinstance(sel, dict):
-                selected_points = sel.get('points', [])
-            elif hasattr(sel, 'points'):
-                selected_points = getattr(sel, 'points', [])
-        elif isinstance(event, dict) and 'selection' in event:
-            selected_points = event['selection'].get('points', [])
-            
-    if selected_points:
-        st.markdown("### Selected Point & 10 Nearest Neighbors")
+        fig = plot_embeddings(
+            df=st.session_state['df'],
+            embeddings=embeddings,
+            color_column=color_column,
+            hover_cols=hover_cols,
+            highlight_categories=highlight_categories
+        )
         
-        # Get the first clicked point coordinates
-        clicked_x = selected_points[0].get('x') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'x', None)
-        clicked_y = selected_points[0].get('y') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'y', None)
-        
-        if clicked_x is None or clicked_y is None:
-            st.warning("Could not extract coordinates from the selected point.")
-            st.stop()
-            
-        # Find Nearest Neighbors in the 2D latent space
-        nn = NearestNeighbors(n_neighbors=11) # 1 for the point itself + 10 neighbors
-        nn.fit(embeddings)
-        
-        distances, indices = nn.kneighbors([[clicked_x, clicked_y]])
-        neighbor_indices = indices[0]
-        
-        # Helper to render a row as a card
-        def render_card(row, distance=None, is_ref=False):
-            with st.container(border=True):
-                if is_ref:
-                    st.markdown("**🔴 Reference Point**")
-                else:
-                    st.caption(f"Latent Distance: {distance:.4f}")
+        # Render with selection events enabled
+        event = st.plotly_chart(
+            fig, 
+            use_container_width=True, 
+            on_select="rerun", 
+            selection_mode="points"
+        )
+    
+        # --- Data Instance Cards (KNN) ---
+        selected_points = []
+        if event:
+            # Safely extract points depending on how Streamlit wraps the event
+            if hasattr(event, 'selection'):
+                sel = event.selection
+                if isinstance(sel, dict):
+                    selected_points = sel.get('points', [])
+                elif hasattr(sel, 'points'):
+                    selected_points = getattr(sel, 'points', [])
+            elif isinstance(event, dict) and 'selection' in event:
+                selected_points = event['selection'].get('points', [])
                 
-                # Highlight the key metrics
-                cols = st.columns(3)
-                cols[0].metric("Fare Amount", f"${row.get('fare_amount', 0):.2f}")
-                cols[1].metric("Trip Distance", f"{row.get('trip_distance', 0):.2f} mi")
-                cols[2].metric("Total Amount", f"${row.get('total_amount', 0):.2f}")
-                
-                # Show categorical info
-                st.markdown(f"**Pickup:** {row.get('pu_borough', 'N/A')} ({row.get('pu_zone', 'N/A')}) at {row.get('pickup_hour', 'N/A')}:00")
-                st.markdown(f"**Dropoff:** {row.get('do_borough', 'N/A')} ({row.get('do_zone', 'N/A')})")
-                st.markdown(f"**Payment:** {row.get('payment_type', 'N/A')} | **Day:** {row.get('pickup_dayofweek', 'N/A')}")
-        
-        # Render the Reference Point Card
-        ref_idx = neighbor_indices[0]
-        ref_row = df.iloc[ref_idx]
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            render_card(ref_row, is_ref=True)
-            if len(neighbor_indices) > 1:
-                st.markdown("#### Closest Neighbor")
-                idx = neighbor_indices[1]
-                dist = distances[0][1]
-                render_card(df.iloc[idx], distance=dist)
-                
-        with col2:
-            st.markdown("#### Geographic Trip Mapping")
+        if selected_points:
+            st.markdown("### Selected Point & 10 Nearest Neighbors")
             
-            # Create a Map containing all the relevant lines
-            # Default center NYC
-            m = folium.Map(location=[40.7128, -74.0060], zoom_start=11, tiles="CartoDB dark_matter")
-            has_valid_cords = False
+            # Get the first clicked point coordinates
+            clicked_x = selected_points[0].get('x') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'x', None)
+            clicked_y = selected_points[0].get('y') if isinstance(selected_points[0], dict) else getattr(selected_points[0], 'y', None)
             
-            # Helper to draw trip
-            def add_trip_to_map(row, color, weight, opacity, label_prefix):
-                try:
-                    pLat = float(row.get('pu_lat'))
-                    pLon = float(row.get('pu_lon'))
-                    dLat = float(row.get('do_lat'))
-                    dLon = float(row.get('do_lon'))
+            if clicked_x is None or clicked_y is None:
+                st.warning("Could not extract coordinates from the selected point.")
+                st.stop()
+                
+            # Find Nearest Neighbors in the 2D latent space
+            nn = NearestNeighbors(n_neighbors=11) # 1 for the point itself + 10 neighbors
+            nn.fit(embeddings)
+            
+            distances, indices = nn.kneighbors([[clicked_x, clicked_y]])
+            neighbor_indices = indices[0]
+            
+            # Helper to render a row as a card
+            def render_card(row, distance=None, is_ref=False):
+                with st.container(border=True):
+                    if is_ref:
+                        st.markdown("**🔴 Reference Point**")
+                    else:
+                        st.caption(f"Latent Distance: {distance:.4f}")
                     
-                    if pd.notna(pLat) and pd.notna(pLon) and pd.notna(dLat) and pd.notna(dLon):
-                        # Add line between pickup and dropoff
-                        popup_html = f"<b>{label_prefix}</b><br>Fare: ${row.get('fare_amount', 0):.2f}<br>Dist: {row.get('trip_distance', 0):.2f} mi<br>PU: {row.get('pu_zone')}<br>DO: {row.get('do_zone')}"
-                        folium.PolyLine(
-                            locations=[(pLat, pLon), (dLat, dLon)],
-                            color=color,
-                            weight=weight,
-                            opacity=opacity,
-                            popup=folium.Popup(popup_html, max_width=250),
-                            tooltip=f"{label_prefix} Trip"
-                        ).add_to(m)
-                        
-                        # Add Start and End markers as tiny circles
-                        folium.CircleMarker(location=(pLat, pLon), radius=4, color="green", fill=True, fillOpacity=1, popup="Pickup").add_to(m)
-                        folium.CircleMarker(location=(dLat, dLon), radius=4, color="white", fill=True, fillOpacity=1, popup="Dropoff").add_to(m)
-                        return True
-                except Exception:
-                    pass
-                return False
-
-            # Draw neighbors first (so they are under the reference)
-            for i in range(1, len(neighbor_indices)):
-                idx = neighbor_indices[i]
-                row = df.iloc[idx]
-                success = add_trip_to_map(row, color="#00ffff", weight=2, opacity=0.4, label_prefix=f"Neighbor {i}")
-                if success: has_valid_cords = True
-
-            # Draw reference line last (over top)
-            success = add_trip_to_map(ref_row, color="#ff0000", weight=4, opacity=0.8, label_prefix="Reference")
-            if success: has_valid_cords = True
+                    # Highlight the key metrics
+                    cols = st.columns(3)
+                    cols[0].metric("Fare Amount", f"${row.get('fare_amount', 0):.2f}")
+                    cols[1].metric("Trip Distance", f"{row.get('trip_distance', 0):.2f} mi")
+                    cols[2].metric("Total Amount", f"${row.get('total_amount', 0):.2f}")
+                    
+                    # Show categorical info
+                    st.markdown(f"**Pickup:** {row.get('pu_borough', 'N/A')} ({row.get('pu_zone', 'N/A')}) at {row.get('pickup_hour', 'N/A')}:00")
+                    st.markdown(f"**Dropoff:** {row.get('do_borough', 'N/A')} ({row.get('do_zone', 'N/A')})")
+                    st.markdown(f"**Payment:** {row.get('payment_type', 'N/A')} | **Day:** {row.get('pickup_dayofweek', 'N/A')}")
             
-            if has_valid_cords:
-                st_folium(m, use_container_width=True, height=450, returned_objects=[])
-            else:
-                st.warning("Coordinates not available for these trips to map geographically. Ensure the shapefile was processed successfully.")
+            # Render the Reference Point Card
+            ref_idx = neighbor_indices[0]
+            ref_row = df.iloc[ref_idx]
+            
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                render_card(ref_row, is_ref=True)
+                if len(neighbor_indices) > 1:
+                    st.markdown("#### Closest Neighbor")
+                    idx = neighbor_indices[1]
+                    dist = distances[0][1]
+                    render_card(df.iloc[idx], distance=dist)
+                    
+            with col2:
+                st.markdown("#### Geographic Trip Mapping")
                 
-        # Neighborhood Stats
-        st.markdown("#### Neighborhood Statistics")
-        neighbors_df = df.iloc[neighbor_indices]
-        hist_cols = st.columns(3)
-        with hist_cols[0]:
-            fig_dist = px.histogram(neighbors_df, x="trip_distance", title="Trip Distances (mi)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
-            fig_dist.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig_dist, use_container_width=True)
-        with hist_cols[1]:
-            fig_fare = px.histogram(neighbors_df, x="fare_amount", title="Fare Amounts ($)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
-            fig_fare.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig_fare, use_container_width=True)
-            
-        with hist_cols[2]:
-            fig_hour = px.histogram(neighbors_df, x="pickup_hour", title="Pickup Hours", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
-            fig_hour.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(dtick=1))
-            st.plotly_chart(fig_hour, use_container_width=True)
-            
+                # Create a Map containing all the relevant lines
+                # Default center NYC
+                m = folium.Map(location=[40.7128, -74.0060], zoom_start=11, tiles="CartoDB dark_matter")
+                has_valid_cords = False
+                
+                # Helper to draw trip
+                def add_trip_to_map(row, color, weight, opacity, label_prefix):
+                    try:
+                        pLat = float(row.get('pu_lat'))
+                        pLon = float(row.get('pu_lon'))
+                        dLat = float(row.get('do_lat'))
+                        dLon = float(row.get('do_lon'))
+                        
+                        if pd.notna(pLat) and pd.notna(pLon) and pd.notna(dLat) and pd.notna(dLon):
+                            # Add line between pickup and dropoff
+                            popup_html = f"<b>{label_prefix}</b><br>Fare: ${row.get('fare_amount', 0):.2f}<br>Dist: {row.get('trip_distance', 0):.2f} mi<br>PU: {row.get('pu_zone')}<br>DO: {row.get('do_zone')}"
+                            folium.PolyLine(
+                                locations=[(pLat, pLon), (dLat, dLon)],
+                                color=color,
+                                weight=weight,
+                                opacity=opacity,
+                                popup=folium.Popup(popup_html, max_width=250),
+                                tooltip=f"{label_prefix} Trip"
+                            ).add_to(m)
+                            
+                            # Add Start and End markers as tiny circles
+                            folium.CircleMarker(location=(pLat, pLon), radius=4, color="green", fill=True, fillOpacity=1, popup="Pickup").add_to(m)
+                            folium.CircleMarker(location=(dLat, dLon), radius=4, color="white", fill=True, fillOpacity=1, popup="Dropoff").add_to(m)
+                            return True
+                    except Exception:
+                        pass
+                    return False
+    
+                # Draw neighbors first (so they are under the reference)
+                for i in range(1, len(neighbor_indices)):
+                    idx = neighbor_indices[i]
+                    row = df.iloc[idx]
+                    success = add_trip_to_map(row, color="#00ffff", weight=2, opacity=0.4, label_prefix=f"Neighbor {i}")
+                    if success: has_valid_cords = True
+    
+                # Draw reference line last (over top)
+                success = add_trip_to_map(ref_row, color="#ff0000", weight=4, opacity=0.8, label_prefix="Reference")
+                if success: has_valid_cords = True
+                
+                if has_valid_cords:
+                    st_folium(m, use_container_width=True, height=450, returned_objects=[])
+                else:
+                    st.warning("Coordinates not available for these trips to map geographically. Ensure the shapefile was processed successfully.")
+                    
+            # Neighborhood Stats
+            st.markdown("#### Neighborhood Statistics")
+            neighbors_df = df.iloc[neighbor_indices]
+            hist_cols = st.columns(3)
+            with hist_cols[0]:
+                fig_dist = px.histogram(neighbors_df, x="trip_distance", title="Trip Distances (mi)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+                fig_dist.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig_dist, use_container_width=True)
+            with hist_cols[1]:
+                fig_fare = px.histogram(neighbors_df, x="fare_amount", title="Fare Amounts ($)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+                fig_fare.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig_fare, use_container_width=True)
+                
+            with hist_cols[2]:
+                fig_hour = px.histogram(neighbors_df, x="pickup_hour", title="Pickup Hours", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
+                fig_hour.update_layout(height=250, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(dtick=1))
+                st.plotly_chart(fig_hour, use_container_width=True)
+                    
+        else:
+            st.info("Click on any point in the scatter plot above to view its geographic trip and nearest neighbors.")
+    
     else:
-        st.info("Click on any point in the scatter plot above to view its geographic trip and nearest neighbors.")
-
-else:
-    st.info("Click 'Train Autoencoder' or 'Run PCA' to generate the visualization.")
+        st.info("Click 'Train Autoencoder' or 'Run PCA' to generate the visualization.")
+        
+with tab2:
+    st.subheader("Data Analysis")
+    st.write("Explore the distributions and relationships of the raw dataset.")
+    
+    st.markdown("### 1D Distribution (Histogram)")
+    # Filter for numerical features for the histogram (excluding datetime, string, etc unless you just want counts)
+    # Pandas numeric types
+    numerical_cols = df.select_dtypes(include=['number']).columns.tolist()
+    
+    if numerical_cols:
+        hist_var = st.selectbox("Select Numerical Feature for Histogram", options=numerical_cols)
+        fig_1d = px.histogram(df, x=hist_var, title=f"Distribution of {hist_var}", template="plotly_dark", nbins=50)
+        st.plotly_chart(fig_1d, use_container_width=True)
+    else:
+        st.warning("No numerical columns found for histograms.")
+        
+    st.markdown("---")
+    st.markdown("### 2D Relationship (Scatter Plot)")
+    
+    col_x, col_y, col_color = st.columns(3)
+    
+    with col_x:
+        scatter_x = st.selectbox("X-Axis Feature", options=all_features, index=all_features.index('trip_distance') if 'trip_distance' in all_features else 0)
+    with col_y:
+        scatter_y = st.selectbox("Y-Axis Feature", options=all_features, index=all_features.index('fare_amount') if 'fare_amount' in all_features else 0)
+    with col_color:
+        scatter_c = st.selectbox("Color Mapping", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
+        
+    # Sample a smaller subset for the scatter plot to keep the browser responsive
+    plot_sample_size = min(5000, len(df))
+    df_sample = df.sample(n=plot_sample_size, random_state=42)
+    
+    fig_2d = px.scatter(
+        df_sample, 
+        x=scatter_x, 
+        y=scatter_y, 
+        color=scatter_c,
+        title=f"{scatter_y} vs {scatter_x}",
+        template="plotly_dark",
+        opacity=0.6,
+        render_mode='webgl'
+    )
+    fig_2d.update_traces(marker=dict(size=4, line=dict(width=0.2, color='DarkSlateGrey')))
+    if pd.api.types.is_numeric_dtype(df_sample[scatter_c]) and scatter_c in ['trip_distance', 'fare_amount', 'total_amount', 'tip_amount']:
+         # Apply the same log scaling suggestion as the autoencoder map
+         import numpy as np
+         df_sample[f'Log1p({scatter_c})'] = np.log1p(df_sample[scatter_c].clip(lower=0))
+         fig_2d = px.scatter(
+             df_sample, x=scatter_x, y=scatter_y, color=f'Log1p({scatter_c})',
+             title=f"{scatter_y} vs {scatter_x}", template="plotly_dark", opacity=0.6, render_mode='webgl'
+         )
+         fig_2d.update_traces(marker=dict(size=4, line=dict(width=0.2, color='DarkSlateGrey')))
+         
+    st.plotly_chart(fig_2d, use_container_width=True)
+    st.caption(f"Scatter plot showing {plot_sample_size} random samples for performance.")
