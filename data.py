@@ -158,6 +158,10 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         if cat_col in df.columns:
             df[cat_col] = df[cat_col].astype(str)
             
+    # Add a combined Pickup to Dropoff Borough feature for coloring
+    if 'pu_borough' in df.columns and 'do_borough' in df.columns:
+        df['pu_do_borough'] = df['pu_borough'] + " ➔ " + df['do_borough']
+            
     return df
 
 
@@ -172,7 +176,7 @@ def transform_data(df: pd.DataFrame, feature_cols: list) -> tuple[torch.Tensor, 
 
     # Heuristic: if a column is an object/category, or specifically named as categorical, we OHE it
     # For TLC data, vendor_id, RatecodeID, payment_type are usually categorical.
-    categorical_candidates = ['vendor_id', 'vendorid', 'ratecodeid', 'payment_type', 'pickup_dayofweek', 'pickup_hour', 'pu_borough', 'do_borough', 'pu_zone', 'do_zone', 'pulocationid', 'dolocationid']
+    categorical_candidates = ['vendor_id', 'vendorid', 'ratecodeid', 'payment_type', 'pickup_dayofweek', 'pickup_hour', 'pu_borough', 'do_borough', 'pu_do_borough', 'pu_zone', 'do_zone', 'pulocationid', 'dolocationid']
 
     
     # identify which of the selected features are categorical vs numeric
