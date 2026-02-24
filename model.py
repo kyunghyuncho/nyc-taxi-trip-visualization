@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 import streamlit as st
-from optimizer import Muon
-
 class Autoencoder(pl.LightningModule):
     def __init__(self, input_dim: int, num_numeric_features: int, cat_sizes: list, hidden_layers: str, lr: float, optimizer_name: str, nonlinearity_name: str, input_noise_factor: float = 0.0):
         super().__init__()
@@ -115,9 +113,6 @@ class Autoencoder(pl.LightningModule):
             return torch.optim.Adam(self.parameters(), lr=self.lr)
         elif self.optimizer_name == 'SGD':
             return torch.optim.SGD(self.parameters(), lr=self.lr, momentum=0.9)
-        elif self.optimizer_name == 'Muon':
-            # Use custom Muon optimizer
-            return Muon(self.parameters(), lr=self.lr)
         else:
             return torch.optim.Adam(self.parameters(), lr=self.lr)
 

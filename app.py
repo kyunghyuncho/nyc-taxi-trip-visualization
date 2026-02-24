@@ -52,7 +52,7 @@ selected_features = st.sidebar.multiselect(
 st.sidebar.header("2. Hyperparameters")
 use_pca = st.sidebar.checkbox("Use PCA (Linear Autoencoder)", value=False, help="Skips neural network training and uses Standard PCA.")
 learning_rate = st.sidebar.number_input("Learning Rate", value=0.001, format="%.4f", step=0.0005, disabled=use_pca)
-optimizer_name = st.sidebar.selectbox("Optimizer", options=['Adam', 'Muon', 'SGD'], disabled=use_pca)
+optimizer_name = st.sidebar.selectbox("Optimizer", options=['Adam', 'SGD'], disabled=use_pca)
 nonlinearity = st.sidebar.selectbox("Nonlinearity", options=['ReLU', 'Tanh', 'GELU'], disabled=use_pca)
 epochs = st.sidebar.slider("Epochs (Max)", min_value=10, max_value=150, value=50, step=10, disabled=use_pca)
 batch_size = st.sidebar.selectbox("Batch Size", options=[16, 32, 64, 128], index=2, disabled=use_pca)

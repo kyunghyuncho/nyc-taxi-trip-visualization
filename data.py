@@ -15,7 +15,7 @@ load_dotenv()
 TLC_PARQUET_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet"
 
 @st.cache_data
-def fetch_data(limit=10000):
+def fetch_data(limit=50000):
     """
     Fetches NYC Yellow Taxi data directly from the TLC Parquet S3 bucket.
     This is much faster than the JSON API.
