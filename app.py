@@ -92,6 +92,12 @@ if st.button(button_text):
         with st.spinner("Transforming Data..."):
             try:
                 X_train_tensor, X_val_tensor, preprocessor, num_numeric, cat_sizes = transform_data(df, selected_features)
+                
+                # Reconstruct the exact dataframe order used by transform_data
+                from sklearn.model_selection import train_test_split
+                df_train, df_val = train_test_split(df, test_size=0.2, random_state=42)
+                st.session_state['df'] = pd.concat([df_train, df_val], axis=0).reset_index(drop=True)
+                
             except Exception as e:
                 st.error(f"Error during transformation: {e}")
                 st.stop()
