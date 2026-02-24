@@ -76,6 +76,23 @@ if color_column in df.columns and df[color_column].dtype == 'object':
         help="Categories not selected will be grayed out in the plot. If all are removed, everything is grayed out."
     )
 
+st.sidebar.header("5. Export Application")
+st.sidebar.caption("Bundle the generated visualizations into a standalone Serverless App for Netlify.")
+if st.session_state.get('trained', False):
+    from exporter import create_stlite_export_zip
+    
+    st.sidebar.success("Latent Space trained and ready for export!")
+    with st.sidebar.spinner("Bundling WASM Environment..."):
+        zip_buffer = create_stlite_export_zip(st.session_state['df'], st.session_state['embeddings'])
+        st.sidebar.download_button(
+            label="📥 Download netlify_export.zip",
+            data=zip_buffer,
+            file_name="netlify_export.zip",
+            mime="application/zip"
+        )
+else:
+    st.sidebar.info("Train the autoencoder first to enable export!")
+
 # Main Page - Display a sample of the data
 st.subheader("Data Overview")
 st.dataframe(df.head(10))
