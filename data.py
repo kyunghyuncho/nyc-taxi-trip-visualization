@@ -119,6 +119,33 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         print(f"Failed to fetch or map taxi zones: {e}")
 
+    # Load coordinates for Map Visualization
+    import os
+    centroids_path = "taxi_zones_centroids.csv"
+    if os.path.exists(centroids_path):
+        try:
+            centroids_df = pd.read_csv(centroids_path)
+            # Handle string matching just in case
+            centroids_df['LocationID'] = centroids_df['LocationID'].astype(str)
+            
+            if 'pulocationid' in df.columns:
+                df['pulocationid_str'] = df['pulocationid'].astype(str)
+                # Merge for pickup coordinates
+                df = pd.merge(df, centroids_df[['LocationID', 'lat', 'lon']], 
+                              how='left', left_on='pulocationid_str', right_on='LocationID')
+                df.rename(columns={'lat': 'pu_lat', 'lon': 'pu_lon'}, inplace=True)
+                df.drop(columns=['LocationID', 'pulocationid_str'], inplace=True, errors='ignore')
+                
+            if 'dolocationid' in df.columns:
+                df['dolocationid_str'] = df['dolocationid'].astype(str)
+                # Merge for dropoff coordinates
+                df = pd.merge(df, centroids_df[['LocationID', 'lat', 'lon']], 
+                              how='left', left_on='dolocationid_str', right_on='LocationID')
+                df.rename(columns={'lat': 'do_lat', 'lon': 'do_lon'}, inplace=True)
+                df.drop(columns=['LocationID', 'dolocationid_str'], inplace=True, errors='ignore')
+        except Exception as e:
+            print(f"Failed to merge centroids: {e}")
+
     # Cast other known categorical columns to string
     other_cat_cols = ['pulocationid', 'dolocationid', 'pickup_hour', 'store_and_fwd_flag', 'pu_borough', 'do_borough', 'pu_zone', 'do_zone']
     for cat_col in other_cat_cols:

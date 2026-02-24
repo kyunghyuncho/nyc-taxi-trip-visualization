@@ -12,6 +12,8 @@ from data import fetch_data, preprocess_data, transform_data
 from model import Autoencoder, StreamlitProgressCallback
 from viz import plot_embeddings
 from sklearn.neighbors import NearestNeighbors
+import folium
+from streamlit_folium import st_folium
 
 st.set_page_config(page_title="NYC Taxi Dimensionality Reduction", layout="wide")
 
@@ -228,14 +230,14 @@ if st.session_state.get('trained', False):
         distances, indices = nn.kneighbors([[clicked_x, clicked_y]])
         neighbor_indices = indices[0]
         
-        # Render the Reference Point
-        st.markdown("#### The Reference Point")
-        ref_idx = neighbor_indices[0]
-        ref_row = df.iloc[ref_idx]
-        
         # Helper to render a row as a card
-        def render_card(row, distance=None):
+        def render_card(row, distance=None, is_ref=False):
             with st.container(border=True):
+                if is_ref:
+                    st.markdown("**🔴 Reference Point**")
+                else:
+                    st.caption(f"Latent Distance: {distance:.4f}")
+                
                 # Highlight the key metrics
                 cols = st.columns(3)
                 cols[0].metric("Fare Amount", f"${row.get('fare_amount', 0):.2f}")
@@ -246,28 +248,75 @@ if st.session_state.get('trained', False):
                 st.markdown(f"**Pickup:** {row.get('pu_borough', 'N/A')} ({row.get('pu_zone', 'N/A')}) at {row.get('pickup_hour', 'N/A')}:00")
                 st.markdown(f"**Dropoff:** {row.get('do_borough', 'N/A')} ({row.get('do_zone', 'N/A')})")
                 st.markdown(f"**Payment:** {row.get('payment_type', 'N/A')} | **Day:** {row.get('pickup_dayofweek', 'N/A')}")
-                if distance is not None:
-                    st.caption(f"Latent Distance: {distance:.4f}")
-                    
-        render_card(ref_row)
         
-        st.markdown("#### 10 Nearest Neighbors")
-        # Render neighbors in a grid
-        for i in range(1, len(neighbor_indices), 2): # 2 cards per row
-            cols = st.columns(2)
-            with cols[0]:
-                idx = neighbor_indices[i]
-                dist = distances[0][i]
+        # Render the Reference Point Card
+        ref_idx = neighbor_indices[0]
+        ref_row = df.iloc[ref_idx]
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            render_card(ref_row, is_ref=True)
+            if len(neighbor_indices) > 1:
+                st.markdown("#### Closest Neighbor")
+                idx = neighbor_indices[1]
+                dist = distances[0][1]
                 render_card(df.iloc[idx], distance=dist)
                 
-            if i + 1 < len(neighbor_indices):
-                with cols[1]:
-                    idx = neighbor_indices[i+1]
-                    dist = distances[0][i+1]
-                    render_card(df.iloc[idx], distance=dist)
+        with col2:
+            st.markdown("#### Geographic Trip Mapping")
+            
+            # Create a Map containing all the relevant lines
+            # Default center NYC
+            m = folium.Map(location=[40.7128, -74.0060], zoom_start=11, tiles="CartoDB dark_matter")
+            has_valid_cords = False
+            
+            # Helper to draw trip
+            def add_trip_to_map(row, color, weight, opacity, label_prefix):
+                try:
+                    pLat = float(row.get('pu_lat'))
+                    pLon = float(row.get('pu_lon'))
+                    dLat = float(row.get('do_lat'))
+                    dLon = float(row.get('do_lon'))
                     
+                    if pd.notna(pLat) and pd.notna(pLon) and pd.notna(dLat) and pd.notna(dLon):
+                        # Add line between pickup and dropoff
+                        popup_html = f"<b>{label_prefix}</b><br>Fare: ${row.get('fare_amount', 0):.2f}<br>Dist: {row.get('trip_distance', 0):.2f} mi<br>PU: {row.get('pu_zone')}<br>DO: {row.get('do_zone')}"
+                        folium.PolyLine(
+                            locations=[(pLat, pLon), (dLat, dLon)],
+                            color=color,
+                            weight=weight,
+                            opacity=opacity,
+                            popup=folium.Popup(popup_html, max_width=250),
+                            tooltip=f"{label_prefix} Trip"
+                        ).add_to(m)
+                        
+                        # Add Start and End markers as tiny circles
+                        folium.CircleMarker(location=(pLat, pLon), radius=4, color="green", fill=True, fillOpacity=1, popup="Pickup").add_to(m)
+                        folium.CircleMarker(location=(dLat, dLon), radius=4, color="white", fill=True, fillOpacity=1, popup="Dropoff").add_to(m)
+                        return True
+                except Exception:
+                    pass
+                return False
+
+            # Draw neighbors first (so they are under the reference)
+            for i in range(1, len(neighbor_indices)):
+                idx = neighbor_indices[i]
+                row = df.iloc[idx]
+                success = add_trip_to_map(row, color="#00ffff", weight=2, opacity=0.4, label_prefix=f"Neighbor {i}")
+                if success: has_valid_cords = True
+
+            # Draw reference line last (over top)
+            success = add_trip_to_map(ref_row, color="#ff0000", weight=4, opacity=0.8, label_prefix="Reference")
+            if success: has_valid_cords = True
+            
+            if has_valid_cords:
+                st_folium(m, use_container_width=True, height=450, returned_objects=[])
+            else:
+                st.warning("Coordinates not available for these trips to map geographically. Ensure the shapefile was processed successfully.")
+                
     else:
-        st.info("Click on any point in the scatter plot above to view its details and nearest neighbors.")
+        st.info("Click on any point in the scatter plot above to view its geographic trip and nearest neighbors.")
 
 else:
     st.info("Click 'Train Autoencoder' or 'Run PCA' to generate the visualization.")
