@@ -1,21 +1,30 @@
-# 🚖 NYC Taxi Dimensionality Reduction Demo
+# 🚖 NYC Taxi Dimensionality Reduction Dashboard
 
-This is an interactive Streamlit application demonstrating nonlinear dimensionality reduction. The app fetches a subset of the NYC Yellow Taxi dataset, allows users to configure and train a PyTorch Lightning Autoencoder with a 2D bottleneck, and visualizes the resulting latent space using Plotly.
+This is an interactive Streamlit application demonstrating nonlinear dimensionality reduction applied to the NYC Yellow Taxi dataset. The application empowers users to train a custom PyTorch Lightning Autoencoder, dynamically explore the learned latent representations within a visually rich space, and thoroughly analyze the raw dataset variables.
 
-## 🌟 Features
+## 🌟 Core Features
 
-*   **Interactive Data Fetching:** Pulls real-world data quickly from the NYC TLC Parquet data dump.
-*   **Dynamic Data Preprocessing:** Cleans and processes the data, including One-Hot Encoding for categorical variables and `StandardScaler` for numerical ones.
-*   **Configurable Autoencoder:** Train a PyTorch Lightning Autoencoder dynamically with Early Stopping and Denoising inputs. Customize:
+### 1. Latent Space Visualization
+Uses a **PyTorch Lightning Autoencoder** to compress complex taxi trips into a 2D bottleneck and maps those embeddings interactively.
+*   **Dynamic Data Preprocessing**: Leverages Scikit-Learn pipelines to automatically clean invalid rows, apply One-Hot Encoding for categorical features, apply `StandardScaler` to numerical variables, and dynamically inject `log1p` transformations for heavily skewed features like trip distance and fares.
+*   **Configurable Autoencoder**: Train an Autoencoder dynamically with Early Stopping and Denoising inputs. Customize:
     *   Input Features, Hidden Layers, Denoising Factor
     *   Learning Rate and Batch Size
-    *   Optimizer (`Adam`, `SGD`, or a custom `Muon` implementation)
+    *   Optimizer (`Adam`, `SGD`, or custom `Muon`)
     *   Nonlinearity (`ReLU`, `Tanh`, `GELU`)
-*   **Linear Baseline (PCA):** Skip neural network training altogether by checking the "Use PCA" box to calculate an exact orthogonal 2D projection using Scikit-Learn for comparison.
-*   **Real-time Visualization:** Uses Plotly Express to vividly render the 2D bottleneck of the trained autoencoder.
-    *   **Interactive Spotlighting:** Select subsets of categorical clusters from the UI to specifically highlight them, explicitly graying-out unselected clusters in the background.
-    *   **Data Instance Cards:** Click on any point in the 2D scatter plot to instantly find its **10 Nearest Neighbors** in the mathematical latent space.
-*   **Geospatial Mapping:** View the actual Pickup-to-Dropoff geographic routes of the selected point and its latent neighbors cleanly drawn onto an interactive **Folium NYC Map**. It dynamically parses centroids projected down from the official TLC Shapefile!
+*   **Optional Orthogonalization (PCA)**: Toggle Scikit-Learn PCA on or off before rendering to force the learned Neural Network embeddings to be orthogonal to one another, or disable Neural Networks altogether to use a pure PCA baseline.
+*   **Real-time Visualization**: Uses WebGL-accelerated Plotly Express to vividly render the bottleneck embeddings. You can specifically highlight and single out exact categorical clusters on the fly over a grayed-out background.
+
+### 2. Deep Dive Neighborhood Analysis
+What happens when you click on a cluster point in the Latent Space?
+*   **K-Nearest Neighbors Extraction**: Instantly computes the **10 Nearest Neighbors** of the specifically clicked coordinate within the latent mathematical space.
+*   **Data Instance Cards**: Renders localized statistics (Fare, Payment, Pickups) and explicit distributions (Histograms for distance, fare, and hour) for the specific neighborhood vs the reference point.
+*   **Geospatial Mapping**: Draws the exact real-world pickup-to-dropoff driving paths of the matched neighborhood physically onto a dark-mode interactive **Folium Map of NYC**.
+
+### 3. Raw Data Analysis
+A fully isolated Tab exclusively for rigorous Exploratory Data Analysis of the NYC Taxi dataset before it hits a neural network.
+*   **1D Distributions**: Select any numerical variable to instantly generate high-resolution Plotly Histograms visualizing its frequency distribution. 
+*   **2D Correlations**: Explicitly choose an X-Axis feature, Y-Axis feature, and a Color Mapping variable to generate interactive Scatter Plots showing how any two physical attributes of a taxi ride correlate.
 
 ## 🚀 Getting Started
 
@@ -64,12 +73,12 @@ streamlit run app.py
 
 ## 🧠 Project Architecture
 
-*   **`app.py`**: The main entry point. Handles the Streamlit UI layout, state management (`st.session_state`), PCA baseline, KNN instance selection, Folium geospatial rendering, and the training execution logic.
-*   **`data.py`**: Handles pulling data from the Socrata API, merging Map coordinate centroids, and applying `sklearn` transformers (OHE, StandardScaler, Train-Test split).
-*   **`model.py`**: Defines the `Autoencoder` via PyTorch Lightning. Includes dynamic architecture building and Denoising injection logic.
-*   **`get_centroids.py`**: Independent utility script using `geopandas` to parse the 260+ official TLC Taxi Zone shapefiles mapping Local IDs to physical Latitude/Longitude coordinate centroids.
-*   **`optimizer.py`**: Contains a custom PyTorch implementation of the `Muon` (MomentUm Orthogonalized by Newton-schulz) optimizer.
-*   **`viz.py`**: Wraps the configuration for `plotly.express.scatter` including the complex transparent styling for explicitly highlighting categorical subsets dynamically.
+*   **`app.py`**: The main interface. Handles Streamlit layout state management, KNN nearest neighbor index extractions, Folium map rendering, Data Analysis charting, and PyTorch model orchestration.
+*   **`data.py`**: Handles API fetching, TLC CSV loading, data cleaning, and complex preprocessing logic mapping PyTorch Tensors sequentially to Pandas Dataframes to ensure pixel-perfect tooltip generation.
+*   **`model.py`**: Defines the `Autoencoder` via PyTorch Lightning. Includes dynamic component building and Denoising injection logic.
+*   **`optimizer.py`**: Contains a custom PyTorch implementation of the `Muon` optimizer.
+*   **`viz.py`**: Wraps the configuration for `plotly.express.scatter` and complex transparent styling definitions.
+*   **`get_centroids.py`**: Independent utility pulling actual geospatial centroid lat/lon coordinates natively from massive TLC Shapefiles (`.shp`).
 
 ## 🛠 Tech Stack
 
