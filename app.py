@@ -261,8 +261,9 @@ with tab1:
                     st.markdown(f"**Payment:** {row.get('payment_type', 'N/A')} | **Day:** {row.get('pickup_dayofweek', 'N/A')}")
             
             # Render the Reference Point Card
+            plot_df = st.session_state['df']
             ref_idx = neighbor_indices[0]
-            ref_row = df.iloc[ref_idx]
+            ref_row = plot_df.iloc[ref_idx]
             
             col1, col2 = st.columns([1, 2])
             
@@ -272,7 +273,7 @@ with tab1:
                     st.markdown("#### Closest Neighbor")
                     idx = neighbor_indices[1]
                     dist = distances[0][1]
-                    render_card(df.iloc[idx], distance=dist)
+                    render_card(plot_df.iloc[idx], distance=dist)
                     
             with col2:
                 st.markdown("#### Geographic Trip Mapping")
@@ -313,7 +314,7 @@ with tab1:
                 # Draw neighbors first (so they are under the reference)
                 for i in range(1, len(neighbor_indices)):
                     idx = neighbor_indices[i]
-                    row = df.iloc[idx]
+                    row = plot_df.iloc[idx]
                     success = add_trip_to_map(row, color="#00ffff", weight=2, opacity=0.4, label_prefix=f"Neighbor {i}")
                     if success: has_valid_cords = True
     
@@ -328,7 +329,7 @@ with tab1:
                     
             # Neighborhood Stats
             st.markdown("#### Neighborhood Statistics")
-            neighbors_df = df.iloc[neighbor_indices]
+            neighbors_df = plot_df.iloc[neighbor_indices]
             hist_cols = st.columns(3)
             with hist_cols[0]:
                 fig_dist = px.histogram(neighbors_df, x="trip_distance", title="Trip Distances (mi)", nbins=10, template="plotly_dark", color_discrete_sequence=["#00ffff"])
