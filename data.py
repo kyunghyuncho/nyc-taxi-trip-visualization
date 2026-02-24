@@ -105,19 +105,23 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # Map Location IDs to Boroughs and Zones
     try:
-        lookup_df = pd.read_csv('https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
-        borough_map = dict(zip(lookup_df['LocationID'], lookup_df['Borough']))
-        zone_map = dict(zip(lookup_df['LocationID'], lookup_df['Zone']))
-        
-        if 'pulocationid' in df.columns:
-            df['pu_borough'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(borough_map).fillna('Unknown')
-            df['pu_zone'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(zone_map).fillna('Unknown')
+        # The S3 bucket is occasionally 403, so we use our local centroids file 
+        # which already merged the official shapefile properties.
+        import os
+        if os.path.exists("taxi_zones_centroids.csv"):
+            lookup_df = pd.read_csv("taxi_zones_centroids.csv")
+            borough_map = dict(zip(lookup_df['LocationID'], lookup_df['borough']))
+            zone_map = dict(zip(lookup_df['LocationID'], lookup_df['zone']))
             
-        if 'dolocationid' in df.columns:
-            df['do_borough'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(borough_map).fillna('Unknown')
-            df['do_zone'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(zone_map).fillna('Unknown')
+            if 'pulocationid' in df.columns:
+                df['pu_borough'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(borough_map).fillna('Unknown')
+                df['pu_zone'] = pd.to_numeric(df['pulocationid'], errors='coerce').map(zone_map).fillna('Unknown')
+                
+            if 'dolocationid' in df.columns:
+                df['do_borough'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(borough_map).fillna('Unknown')
+                df['do_zone'] = pd.to_numeric(df['dolocationid'], errors='coerce').map(zone_map).fillna('Unknown')
     except Exception as e:
-        print(f"Failed to fetch or map taxi zones: {e}")
+        print(f"Failed to load or map taxi zones: {e}")
 
     # Load coordinates for Map Visualization
     import os
@@ -131,7 +135,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
             if 'pulocationid' in df.columns:
                 df['pulocationid_str'] = df['pulocationid'].astype(str)
                 # Merge for pickup coordinates
-                df = pd.merge(df, centroids_df[['LocationID', 'lat', 'lon']], 
+                df = df.merge(centroids_df[['LocationID', 'lat', 'lon']], 
                               how='left', left_on='pulocationid_str', right_on='LocationID')
                 df.rename(columns={'lat': 'pu_lat', 'lon': 'pu_lon'}, inplace=True)
                 df.drop(columns=['LocationID', 'pulocationid_str'], inplace=True, errors='ignore')
@@ -139,7 +143,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
             if 'dolocationid' in df.columns:
                 df['dolocationid_str'] = df['dolocationid'].astype(str)
                 # Merge for dropoff coordinates
-                df = pd.merge(df, centroids_df[['LocationID', 'lat', 'lon']], 
+                df = df.merge(centroids_df[['LocationID', 'lat', 'lon']], 
                               how='left', left_on='dolocationid_str', right_on='LocationID')
                 df.rename(columns={'lat': 'do_lat', 'lon': 'do_lon'}, inplace=True)
                 df.drop(columns=['LocationID', 'dolocationid_str'], inplace=True, errors='ignore')
