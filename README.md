@@ -26,6 +26,11 @@ A fully isolated Tab exclusively for rigorous Exploratory Data Analysis of the N
 *   **1D Distributions**: Select any numerical variable to instantly generate high-resolution Plotly Histograms visualizing its frequency distribution. 
 *   **2D Correlations**: Explicitly choose an X-Axis feature, Y-Axis feature, and a Color Mapping variable to generate interactive Scatter Plots showing how any two physical attributes of a taxi ride correlate.
 
+### 4. Standalone Serverless Export
+Instantly package your trained neural network representation into a beautiful, offline **WebAssembly (`stlite`)** application.
+*   **One-Click ZIP Generation**: Generates a mathematically compressed `.zip` artifact directly from the Streamlit sidebar containing your modeled `export_data.csv`, the Pyodide WebAssembly runtime wrappers, and your exact visualization logic.
+*   **Zero-Backend Deployment**: WebAssembly runs locally entirely inside the browser. Extract the ZIP and double click `index.html` to run the Latent Dashboards completely offline, or drag the folder directly into Netlify to host it globally for free without ever paying for a backing Python server!
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -51,18 +56,6 @@ Ensure you have a Python environment manager installed (e.g., `uv`). We recommen
     uv pip install -r requirements.txt
     ```
 
-4.  **Configure API Key:**
-    The application pulls from the Socrata NYC Open Data API. To avoid severe rate limiting, you should provide an App Token.
-    
-    *   Copy the template:
-        ```bash
-        cp .env.template .env
-        ```
-    *   Open `.env` and add your token:
-        ```env
-        SOCRATA_APP_TOKEN=your_token_here
-        ```
-
 ### Running the App
 
 Once your environment is active and dependencies are installed, start the Streamlit server:
@@ -76,7 +69,7 @@ streamlit run app.py
 *   **`app.py`**: The main interface. Handles Streamlit layout state management, KNN nearest neighbor index extractions, Folium map rendering, Data Analysis charting, and PyTorch model orchestration.
 *   **`data.py`**: Handles API fetching, TLC CSV loading, data cleaning, and complex preprocessing logic mapping PyTorch Tensors sequentially to Pandas Dataframes to ensure pixel-perfect tooltip generation.
 *   **`model.py`**: Defines the `Autoencoder` via PyTorch Lightning. Includes dynamic component building and Denoising injection logic.
-*   **`optimizer.py`**: Contains a custom PyTorch implementation of the `Muon` optimizer.
+*   **`exporter.py`**: The Static WebAssembly App compiler. Dynamically strips PyTorch variables, unifies Latent embeddings, and constructs a completely pure Python/JS/HTML offline frontend package using `stlite` that circumvents local CORS restrictions natively.
 *   **`viz.py`**: Wraps the configuration for `plotly.express.scatter` and complex transparent styling definitions.
 *   **`get_centroids.py`**: Independent utility pulling actual geospatial centroid lat/lon coordinates natively from massive TLC Shapefiles (`.shp`).
 
