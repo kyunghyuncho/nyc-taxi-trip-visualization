@@ -36,6 +36,7 @@ def create_stlite_export_zip(df, embeddings):
     # Create static_app.py logic
     # This strips out PyTorch, `data.py`, and `model.py` but keeps the Dashboards
     static_app_content = """import sys
+import types
 try:
     import pyarrow as pa
     if not hasattr(pa, 'ChunkedArray'):
@@ -43,7 +44,10 @@ try:
     if not hasattr(pa, 'Table'):
         pa.Table = type('Table', (), {})
 except ImportError:
-    pass
+    pa = types.ModuleType('pyarrow')
+    pa.ChunkedArray = type('ChunkedArray', (), {})
+    pa.Table = type('Table', (), {})
+    sys.modules['pyarrow'] = pa
 
 import streamlit as st
 import pandas as pd
@@ -301,7 +305,7 @@ with tab2:
     <script>
       stlite.mount(
         {{
-          requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium", "pyarrow"],
+          requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium"],
           entrypoint: "static_app.py",
           files: {{
             "static_app.py": {{ data: b64ToUint8Array("{app_b64}") }},
