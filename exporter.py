@@ -35,7 +35,17 @@ def create_stlite_export_zip(df, embeddings):
 
     # Create static_app.py logic
     # This strips out PyTorch, `data.py`, and `model.py` but keeps the Dashboards
-    static_app_content = """import streamlit as st
+    static_app_content = """import sys
+try:
+    import pyarrow as pa
+    if not hasattr(pa, 'ChunkedArray'):
+        pa.ChunkedArray = type('ChunkedArray', (), {})
+    if not hasattr(pa, 'Table'):
+        pa.Table = type('Table', (), {})
+except ImportError:
+    pass
+
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sklearn.neighbors import NearestNeighbors
@@ -291,7 +301,7 @@ with tab2:
     <script>
       stlite.mount(
         {{
-          requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium"],
+          requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium", "pyarrow"],
           entrypoint: "static_app.py",
           files: {{
             "static_app.py": {{ data: b64ToUint8Array("{app_b64}") }},
