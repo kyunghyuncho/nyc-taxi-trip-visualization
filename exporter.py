@@ -194,7 +194,7 @@ with tab1:
                 if success: has_valid_cords = True
                 
                 if has_valid_cords:
-                    st_folium(m, use_container_width=True, height=450, returned_objects=[])
+                    st_folium(m, use_container_width=True, height=450)
                 else:
                     st.warning("Coordinates not available for these trips to map geographically.")
                     
