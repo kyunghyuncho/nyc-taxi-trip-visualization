@@ -79,7 +79,16 @@ with st.spinner("Loading embedded dataset..."):
 st.sidebar.header("Visualization Setup")
 all_features = [c for c in df.columns if c not in ['Dim 1', 'Dim 2']]
 color_column = st.sidebar.selectbox("Color Mapping Feature", options=all_features, index=all_features.index('pu_borough') if 'pu_borough' in all_features else 0)
-highlight_categories = st.sidebar.multiselect("Highlight Specific Categories (Optional)", options=sorted([str(x) for x in pd.Series(df[color_column].unique()).dropna().tolist()]), default=[])
+
+highlight_categories = None
+if color_column in df.columns and df[color_column].dtype == 'object':
+    unique_cats = sorted([str(x) for x in pd.Series(df[color_column].unique()).dropna().tolist()])
+    highlight_categories = st.sidebar.multiselect(
+        f"Highlight specific {color_column}s", 
+        options=unique_cats, 
+        default=unique_cats,
+        help="Categories not selected will be grayed out in the plot. If all are removed, everything is grayed out."
+    )
 
 st.markdown("---")
 tab1, tab2 = st.tabs(["Latent Space Visualization", "Data Analysis"])
