@@ -2,6 +2,7 @@ import io
 import zipfile
 import pandas as pd
 import os
+import base64
 
 def create_stlite_export_zip(df, embeddings):
     """
@@ -249,7 +250,16 @@ with tab2:
     st.caption(f"Scatter plot showing {plot_sample_size} random samples for performance.")
 """
 
-    index_html_content = """<!DOCTYPE html>
+    # Encode files to base64 for safe inline JS injection without breaking f-strings/quotes
+    app_b64 = base64.b64encode(static_app_content.encode('utf-8')).decode('utf-8')
+    viz_b64 = base64.b64encode(viz_content.encode('utf-8')).decode('utf-8')
+    csv_b64 = base64.b64encode(csv_bytes).decode('utf-8')
+    
+    centroids_b64 = ""
+    if len(centroids_bytes) > 0:
+        centroids_b64 = base64.b64encode(centroids_bytes).decode('utf-8')
+
+    index_html_content = f"""<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -264,19 +274,32 @@ with tab2:
   </head>
   <body>
     <div id="root"></div>
+    
+    <script>
+      // Helper function to decode base64 back into a Uint8Array
+      function b64ToUint8Array(base64) {{
+          var binary_string = window.atob(base64);
+          var len = binary_string.length;
+          var bytes = new Uint8Array(len);
+          for (var i = 0; i < len; i++) {{
+              bytes[i] = binary_string.charCodeAt(i);
+          }}
+          return bytes;
+      }}
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.55.0/build/stlite.js"></script>
     <script>
       stlite.mount(
-        {
+        {{
           requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium"],
           entrypoint: "static_app.py",
-          files: {
-            "static_app.py": { url: "./static_app.py" },
-            "viz.py": { url: "./viz.py" },
-            "export_data.csv": { url: "./export_data.csv" },
-            "taxi_zones_centroids.csv": { url: "./taxi_zones_centroids.csv" }
-          },
-        },
+          files: {{
+            "static_app.py": {{ data: b64ToUint8Array("{app_b64}") }},
+            "viz.py": {{ data: b64ToUint8Array("{viz_b64}") }},
+            "export_data.csv": {{ data: b64ToUint8Array("{csv_b64}") }}
+            {f', "taxi_zones_centroids.csv": {{ data: b64ToUint8Array("{centroids_b64}") }}' if centroids_b64 else ''}
+          }},
+        }},
         document.getElementById("root")
       );
     </script>
