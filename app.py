@@ -13,7 +13,7 @@ from model import Autoencoder, StreamlitProgressCallback
 from viz import plot_embeddings
 from sklearn.neighbors import NearestNeighbors
 import folium
-from streamlit_folium import st_folium
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="NYC Taxi Dimensionality Reduction", layout="wide")
 
@@ -340,7 +340,7 @@ with tab1:
                 if success: has_valid_cords = True
                 
                 if has_valid_cords:
-                    st_folium(m, use_container_width=True, height=450)
+                    components.html(m._repr_html_(), height=450)
                 else:
                     st.warning("Coordinates not available for these trips to map geographically. Ensure the shapefile was processed successfully.")
                     

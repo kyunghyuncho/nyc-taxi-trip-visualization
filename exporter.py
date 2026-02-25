@@ -54,7 +54,7 @@ import pandas as pd
 import plotly.express as px
 from sklearn.neighbors import NearestNeighbors
 import folium
-from streamlit_folium import st_folium
+import streamlit.components.v1 as components
 import numpy as np
 import warnings
 warnings.filterwarnings('ignore')
@@ -203,7 +203,7 @@ with tab1:
                 if success: has_valid_cords = True
                 
                 if has_valid_cords:
-                    st_folium(m, use_container_width=True, height=450)
+                    components.html(m._repr_html_(), height=450)
                 else:
                     st.warning("Coordinates not available for these trips to map geographically.")
                     
@@ -314,7 +314,7 @@ with tab2:
     <script>
       stlite.mount(
         {{
-          requirements: ["pandas", "plotly", "scikit-learn", "folium", "streamlit-folium"],
+          requirements: ["pandas", "plotly", "scikit-learn", "folium", "jinja2"],
           entrypoint: "static_app.py",
           files: {{
             "static_app.py": {{ data: b64ToUint8Array("{app_b64}") }},
